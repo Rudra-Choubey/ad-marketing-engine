@@ -14,6 +14,14 @@ from ..services.marketing_engine import (
 
 router = APIRouter()
 
+router.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or ["http://localhost:3000"]
+    allow_credentials=True,
+    allow_methods=["*"],  # allows GET, POST, OPTIONS etc.
+    allow_headers=["*"],
+)
+
 # --------- Schemas ---------
 class Brand(BaseModel):
     name: str

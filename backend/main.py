@@ -2,8 +2,18 @@ from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel
 from typing import List, Dict, Any
 import random
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or ["http://localhost:3000"]
+    allow_credentials=True,
+    allow_methods=["*"],  # allows GET, POST, OPTIONS etc.
+    allow_headers=["*"],
+)
+
 
 # --------- Schemas ---------
 class Brand(BaseModel):
@@ -89,25 +99,43 @@ def set_brief(br: Brief):
 
 @app.post("/generate")
 def generate_endpoint(data: dict = Body(...)):
-    program_name = data.get("program_name")
-    audience = data.get("target_audience")
+    product = data.get("product")
+    audience = data.get("people")  # map "people" -> audience
     localize_flag = data.get("localize", False)
 
-    if not program_name or not audience:
-        raise HTTPException(400, "program_name and target_audience are required")
+    if not product or not audience:
+        raise HTTPException(400, "product and people are required")
 
     # Fake brand & brief if not set
     if not DB["brand"]:
-        DB["brand"] = {"name": "Hackathon Brand", "palette": ["#123456"], "tone": ["playful"], "banned_phrases": [], "logo_url": ""}
+        DB["brand"] = {
+            "name": "Hackathon Brand",
+            "palette": ["#123456"],
+            "tone": ["playful"],
+            "banned_phrases": [],
+            "logo_url": ""
+        }
+
     if not DB["brief"]:
-        DB["brief"] = {"product": program_name, "audience": audience, "value_props": ["Best choice"], "cta": "Buy now", "channels": ["Instagram"], "regions": ["IN", "US"] if localize_flag else ["IN"]}
+        DB["brief"] = {
+            "product": product,
+            "audience": audience,
+            "value_props": [
+                f"Premium pricing: {data.get('price', 'N/A')}",
+                f"Available at: {data.get('place', 'N/A')}",
+                f"Promotion style: {data.get('promotion', 'N/A')}"
+            ],
+            "cta": "Buy now",
+            "channels": ["Instagram"],
+            "regions": ["IN", "US"] if localize_flag else ["IN"]
+        }
 
     items = generate_creatives(DB["brand"], DB["brief"], n=3)
 
     return {
         "ad_copy_1": items[0].primary_text if items else "N/A",
         "ad_copy_2": items[1].primary_text if len(items) > 1 else "N/A",
-        "creative_brief": f"{program_name} for {audience} — localized={localize_flag}",
+        "creative_brief": f"{product} for {audience} — localized={localize_flag}",
         "performance_score": round(50 + 50 * random.random(), 2)
     }
 

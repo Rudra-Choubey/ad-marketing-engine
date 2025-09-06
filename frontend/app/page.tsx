@@ -26,14 +26,40 @@ export default function MarketingAutomationApp() {
     localize: false,
   })
 
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [creative, setCreative] = useState<any>(null)
+
   const handleInputChange = (field: keyof MarketingData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = () => {
-    console.log("Form Data:", formData)
-    // You can access formData here and process it as needed
-    // Add your own logic to fetch/process the data
+  const handleSubmit = async () => {
+    console.log("📤 Sending data to backend:", formData)
+    setIsLoading(true)
+    setError("")
+    setCreative(null)
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
+
+      console.log("📥 Got response:", response.status)
+
+      if (!response.ok) throw new Error("Failed to generate creative.")
+
+      const data = await response.json()
+      console.log("✅ Parsed creative:", data)
+      setCreative(data)
+    } catch (err: any) {
+      console.error("❌ Error:", err)
+      setError(err.message || "Something went wrong.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const marketingPs = [
@@ -76,6 +102,7 @@ export default function MarketingAutomationApp() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
+      {/* Background blur blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-20 w-72 h-72 bg-gradient-to-r from-purple-200/30 to-pink-200/30 rounded-full blur-3xl animate-float"></div>
         <div
@@ -88,6 +115,7 @@ export default function MarketingAutomationApp() {
         ></div>
       </div>
 
+      {/* Header */}
       <header className="relative z-10 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-8">
           <div className="text-center">
@@ -102,6 +130,7 @@ export default function MarketingAutomationApp() {
         </div>
       </header>
 
+      {/* Main */}
       <main className="relative z-10 container mx-auto px-6 py-12">
         <div className="max-w-4xl mx-auto">
           <Card className="bg-white/90 backdrop-blur-sm border-gray-200 shadow-xl">
@@ -120,6 +149,7 @@ export default function MarketingAutomationApp() {
             </CardHeader>
             <CardContent>
               <div className="space-y-8">
+                {/* Inputs */}
                 <div className="grid gap-6">
                   {marketingPs.map(({ key, label, icon: Icon, placeholder, gradient }) => (
                     <div key={key} className="space-y-3">
@@ -147,6 +177,7 @@ export default function MarketingAutomationApp() {
 
                 <Separator className="bg-gray-200" />
 
+                {/* Localization toggle */}
                 <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -171,6 +202,7 @@ export default function MarketingAutomationApp() {
                   </div>
                 </div>
 
+                {/* Submit */}
                 <div className="pt-4">
                   <div
                     onClick={handleSubmit}
@@ -187,10 +219,27 @@ export default function MarketingAutomationApp() {
                       }
                     }}
                   >
-                    <Wand2 className="w-5 h-5 mr-2" />
-                    Generate Creatives
+                    {isLoading ? (
+                      "Generating..."
+                    ) : (
+                      <>
+                        <Wand2 className="w-5 h-5 mr-2" />
+                        Generate Creatives
+                      </>
+                    )}
                   </div>
                 </div>
+
+                {/* Error / Result */}
+                {error && <p className="text-red-500 text-sm">{error}</p>}
+                {creative && (
+                  <div className="p-6 bg-gray-50 rounded-xl border border-gray-200">
+                    <h3 className="text-xl font-semibold mb-2">Generated Creatives</h3>
+                    <pre className="whitespace-pre-wrap text-gray-800 text-sm">
+                      {JSON.stringify(creative, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
