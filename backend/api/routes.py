@@ -3,10 +3,13 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 import os
 import random
+import uuid
 
 from ..services.marketing_engine import (
-    generate_creatives, localize_creatives,
-    bandit, simulate_impression, brand_score
+    generate_creatives,
+    localize_creatives,
+    bandit,
+    brand_score,
 )
 
 router = APIRouter()
@@ -43,13 +46,17 @@ class Feedback(BaseModel):
 # --------- In-memory DB ---------
 DB: Dict[str, Any] = {"brand": None, "brief": None, "creatives": [], "localized": {}}
 
-# small helper for serialization
+# --------- Helpers ---------
 def _dump(x: Any) -> Any:
     if hasattr(x, "model_dump"):
         return x.model_dump()
     if hasattr(x, "__dict__"):
         return x.__dict__
     return x
+
+def simulate_impression(region, creative):
+    """Simulate a click with 30% probability"""
+    return 1 if random.random() < 0.3 else 0
 
 # --------- Routes ---------
 @router.post("/brand")
@@ -75,7 +82,7 @@ def generate(data: dict = Body(...)):
     if not program_name or not audience:
         raise HTTPException(status_code=400, detail="program_name and target_audience are required")
 
-    # Temporary brand so services can run
+    # Temporary brand
     DB["brand"] = {
         "name": "Hackathon Brand",
         "palette": ["#123456"],
@@ -84,7 +91,7 @@ def generate(data: dict = Body(...)):
         "logo_url": ""
     }
 
-    # IMPORTANT: include value_props and cta fields (these are used by _stub_copies)
+    # Temporary brief
     DB["brief"] = {
         "product": program_name,
         "audience": audience,
@@ -98,19 +105,17 @@ def generate(data: dict = Body(...)):
         "regions": ["IN", "US"] if localize else ["IN"]
     }
 
-    # Generate creatives (list of Creative dataclass objects)
+    # Generate creatives
     items = generate_creatives(DB["brand"], DB["brief"], n=3)
-
-    # Save creatives to in-memory DB so /localize, /dashboard etc. work
     DB["creatives"] = items
 
-    # Return shape expected by your React frontend
     return {
         "ad_copy_1": items[0].primary_text if items else "N/A",
         "ad_copy_2": items[1].primary_text if len(items) > 1 else "N/A",
         "creative_brief": f"{program_name} for {audience} — localized={localize}",
         "performance_score": round(50 + 50 * random.random(), 2)
     }
+
 @router.post("/localize")
 def localize():
     if not DB["creatives"]:

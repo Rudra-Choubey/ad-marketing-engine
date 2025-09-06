@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import "./App.css"
+import "./globals.css"
 
-function App() {
+export default function HomePage() {
   const [programName, setProgramName] = useState("")
   const [targetAudience, setTargetAudience] = useState("")
   const [isLocalized, setIsLocalized] = useState(false)
@@ -11,7 +11,6 @@ function App() {
   const [creative, setCreative] = useState(null)
   const [error, setError] = useState("")
 
-  // Inline CreativeDisplay component
   const CreativeDisplay = ({ title, content }) => (
     <div className="creative-card">
       <h4>{title}</h4>
@@ -19,13 +18,18 @@ function App() {
     </div>
   )
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleGenerate = async () => {
+    if (!programName || !targetAudience) {
+      setError("Please fill in all fields")
+      return
+    }
+
     setIsLoading(true)
     setError("")
     setCreative(null)
 
     try {
+      console.log("Submitting request to backend...")
       const response = await fetch("http://127.0.0.1:8000/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -36,10 +40,12 @@ function App() {
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to generate creative.")
+      if (!response.ok) throw new Error("Failed to generate creative")
       const data = await response.json()
+      // console.log("Response received:", data)
       setCreative(data)
     } catch (err) {
+      console.error(err)
       setError(err.message)
     } finally {
       setIsLoading(false)
@@ -54,7 +60,7 @@ function App() {
       </header>
 
       <main className="main-content">
-        <form className="input-form" onSubmit={handleSubmit}>
+        <div className="input-form">
           <div className="form-group">
             <label>Program Name:</label>
             <input
@@ -62,7 +68,6 @@ function App() {
               value={programName}
               onChange={(e) => setProgramName(e.target.value)}
               placeholder="e.g., Data Science Master's"
-              required
             />
           </div>
 
@@ -73,7 +78,6 @@ function App() {
               value={targetAudience}
               onChange={(e) => setTargetAudience(e.target.value)}
               placeholder="e.g., Working professionals in Bangalore"
-              required
             />
           </div>
 
@@ -86,10 +90,14 @@ function App() {
             <label>Localize for a different market</label>
           </div>
 
-          <button type="submit" disabled={isLoading}>
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={handleGenerate}
+          >
             {isLoading ? "Generating..." : "Generate Creatives"}
           </button>
-        </form>
+        </div>
 
         {error && <div className="error-message">{error}</div>}
 
@@ -103,9 +111,7 @@ function App() {
             </div>
             <div className="feedback-section">
               <h3>Simulated Performance Dashboard</h3>
-              <p>
-                Predicted Click-Through Rate (CTR): {creative.performance_score}%
-              </p>
+              <p>Predicted CTR: {creative.performance_score}%</p>
             </div>
           </div>
         )}
@@ -113,5 +119,3 @@ function App() {
     </div>
   )
 }
-
-export default App

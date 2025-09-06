@@ -91,3 +91,7 @@ class Bandit:
         return rows
 
 bandit = Bandit()
+
+def simulate_impression(region, creative):
+    """Simulate a click with 30% probability"""
+    return 1 if random.random() < 0.3 else 0
