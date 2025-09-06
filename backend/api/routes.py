@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any
 import os
+import random
 
 from ..services.marketing_engine import (
     generate_creatives, localize_creatives,
@@ -20,10 +21,9 @@ class Brand(BaseModel):
 
 class Brief(BaseModel):
     product: str
-    price: str
-    place: str
-    promotion: str
-    people: str
+    audience: str
+    value_props: List[str]
+    cta: str
     channels: List[str] = ["Instagram"]
     regions: List[str] = ["IN", "US"]
 
@@ -45,10 +45,8 @@ DB: Dict[str, Any] = {"brand": None, "brief": None, "creatives": [], "localized"
 
 # small helper for serialization
 def _dump(x: Any) -> Any:
-    # pydantic v2 models
     if hasattr(x, "model_dump"):
         return x.model_dump()
-    # dataclasses / simple objects
     if hasattr(x, "__dict__"):
         return x.__dict__
     return x
@@ -64,21 +62,59 @@ def set_brief(br: Brief):
     DB["brief"] = br
     return {"ok": True}
 
-@router.post("/generate", response_model=List[Creative])
-def generate():
-    if not DB["brand"] or not DB["brief"]:
-        raise HTTPException(400, "Set /brand and /brief first")
-    items = generate_creatives(DB["brand"], DB["brief"], n=4)
-    # optional extra score pass
-    for c in items:
-        c.scores["brand"] = c.scores.get("brand", brand_score())
-    DB["creatives"] = items
-    return items
+@router.post("/generate")
+def generate(data: dict = Body(...)):
+    """
+    Accepts frontend body: { program_name, target_audience, localize }
+    Builds a quick brand/brief that matches what the services expect.
+    """
+    program_name = data.get("program_name")
+    audience = data.get("target_audience")
+    localize = data.get("localize", False)
 
+    if not program_name or not audience:
+        raise HTTPException(status_code=400, detail="program_name and target_audience are required")
+
+    # Temporary brand so services can run
+    DB["brand"] = {
+        "name": "Hackathon Brand",
+        "palette": ["#123456"],
+        "tone": ["playful"],
+        "banned_phrases": [],
+        "logo_url": ""
+    }
+
+    # IMPORTANT: include value_props and cta fields (these are used by _stub_copies)
+    DB["brief"] = {
+        "product": program_name,
+        "audience": audience,
+        "value_props": [
+            f"{program_name} helps {audience} upskill fast",
+            "Flexible schedule",
+            "Industry mentors"
+        ],
+        "cta": "Apply now",
+        "channels": ["Instagram"],
+        "regions": ["IN", "US"] if localize else ["IN"]
+    }
+
+    # Generate creatives (list of Creative dataclass objects)
+    items = generate_creatives(DB["brand"], DB["brief"], n=3)
+
+    # Save creatives to in-memory DB so /localize, /dashboard etc. work
+    DB["creatives"] = items
+
+    # Return shape expected by your React frontend
+    return {
+        "ad_copy_1": items[0].primary_text if items else "N/A",
+        "ad_copy_2": items[1].primary_text if len(items) > 1 else "N/A",
+        "creative_brief": f"{program_name} for {audience} — localized={localize}",
+        "performance_score": round(50 + 50 * random.random(), 2)
+    }
 @router.post("/localize")
 def localize():
     if not DB["creatives"]:
-        raise HTTPException(400, "Run /generate first")
+        raise HTTPException(status_code=400, detail="Run /generate first")
     reg = localize_creatives(DB["creatives"], DB["brief"])
     DB["localized"] = reg
     return {k: [_dump(c) for c in v] for k, v in reg.items()}
@@ -87,7 +123,7 @@ def localize():
 def serve(region: str):
     loc = DB["localized"].get(region, [])
     if not loc:
-        raise HTTPException(400, "Run /localize first")
+        raise HTTPException(status_code=400, detail="Run /localize first")
     cid = bandit.choose(region, [c.id for c in loc])
     chosen = next(c for c in loc if c.id == cid)
     return {"region": region, "creative": _dump(chosen)}
@@ -101,7 +137,7 @@ def feedback(f: Feedback):
 def simulate(region: str, n: int = 200):
     loc = DB["localized"].get(region, [])
     if not loc:
-        raise HTTPException(400, "Run /localize first")
+        raise HTTPException(status_code=400, detail="Run /localize first")
     for _ in range(n):
         cid = bandit.choose(region, [c.id for c in loc])
         cobj = next(c for c in loc if c.id == cid)
@@ -119,11 +155,10 @@ def dashboard():
         "bandit": bandit.snapshot(),
     }
 
-# Optional: quick config endpoint to verify env is loaded (safe—no secrets)
 @router.get("/config")
 def config():
     return {
         "openai_text_model": os.getenv("OPENAI_TEXT_MODEL", "unset"),
         "openai_image_model": os.getenv("OPENAI_IMAGE_MODEL", "unset"),
-        "openai_key_present": bool(os.getenv("OPENAI_API_KEY"))  # True/False only
+        "openai_key_present": bool(os.getenv("OPENAI_API_KEY"))
     }
