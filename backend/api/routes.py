@@ -80,15 +80,15 @@ def set_brief(br: Brief):
 @router.post("/generate")
 def generate(data: dict = Body(...)):
     """
-    Accepts frontend body: { program_name, target_audience, localize }
+    Accepts frontend body: { product, price, place, promotion, people, localize }
     Builds a quick brand/brief that matches what the services expect.
     """
-    program_name = data.get("program_name")
-    audience = data.get("target_audience")
-    localize = data.get("localize", False)
+    product = data.get("product")
+    audience = data.get("people")  # "people" field maps to brief.audience
+    localize_flag = data.get("localize", False)
 
-    if not program_name or not audience:
-        raise HTTPException(status_code=400, detail="program_name and target_audience are required")
+    if not product or not audience:
+        raise HTTPException(status_code=400, detail="product and people are required")
 
     # Temporary brand
     DB["brand"] = {
@@ -101,16 +101,16 @@ def generate(data: dict = Body(...)):
 
     # Temporary brief
     DB["brief"] = {
-        "product": program_name,
+        "product": product,
         "audience": audience,
         "value_props": [
-            f"{program_name} helps {audience} upskill fast",
-            "Flexible schedule",
-            "Industry mentors"
+            f"Premium pricing: {data.get('price', 'N/A')}",
+            f"Available at: {data.get('place', 'N/A')}",
+            f"Promotion style: {data.get('promotion', 'N/A')}"
         ],
-        "cta": "Apply now",
+        "cta": "Buy now",
         "channels": ["Instagram"],
-        "regions": ["IN", "US"] if localize else ["IN"]
+        "regions": ["IN", "US"] if localize_flag else ["IN"]
     }
 
     # Generate creatives
@@ -120,9 +120,10 @@ def generate(data: dict = Body(...)):
     return {
         "ad_copy_1": items[0].primary_text if items else "N/A",
         "ad_copy_2": items[1].primary_text if len(items) > 1 else "N/A",
-        "creative_brief": f"{program_name} for {audience} — localized={localize}",
+        "creative_brief": f"{product} for {audience} — localized={localize_flag}",
         "performance_score": round(50 + 50 * random.random(), 2)
     }
+
 
 @router.post("/localize")
 def localize():
