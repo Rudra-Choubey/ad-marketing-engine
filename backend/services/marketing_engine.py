@@ -1,9 +1,7 @@
-# backend/services/marketing_engine.py
-import uuid, random, math
+import uuid, random
 from typing import List, Dict
 from dataclasses import dataclass
 
-# local imports inside functions to avoid circular import
 @dataclass
 class Creative:
     id: str
@@ -17,40 +15,36 @@ def brand_score() -> float:
     return round(0.6 + 0.4 * random.random(), 2)
 
 def generate_creatives(brand, brief, n=3) -> List[Creative]:
-    from ..models.inference import generate_copy_gpt, generate_image_gpt
-
-    copies = generate_copy_gpt(brand, brief, n=n)
-    out = []
-    for c in copies:
+    # Self-contained generator (no external model calls)
+    seeds = ["alpha", "beta", "gamma", "delta", "omega"]
+    out: List[Creative] = []
+    for i in range(n):
         cid = f"C{uuid.uuid4().hex[:6]}"
-        img_url = generate_image_gpt(brand, brief, c)
+        headline = f"{brief['product']} — made for {brief['audience']}"
+        primary = f"Try {brief['product']} for {brief['audience']}! {', '.join(brief.get('value_props', [])[:2])}"
+        # nicer placeholders for demo
+        img_url = f"https://picsum.photos/seed/{seeds[i % len(seeds)]}/800/500"
         out.append(Creative(
             id=cid,
             region="base",
-            headline=c["headline"][:40],
-            primary_text=c["primary_text"][:120],
+            headline=headline[:80],
+            primary_text=primary[:200],
             image_url=img_url,
             scores={"brand": brand_score()}
         ))
     return out
 
 def localize_creatives(creatives: List[Creative], brief) -> Dict[str, List[Creative]]:
-    from ..models.inference import transcreate_copy_gpt
-
     regions = brief.get("regions", ["IN"])
     by_region = {r: [] for r in regions}
-    brand = {"name": "Hackathon Brand"}  # dummy brand
-
     for c in creatives:
-        base = {"headline": c.headline, "primary_text": c.primary_text}
         for r in regions:
-            loc = transcreate_copy_gpt(brand, brief, base, r)
             rid = f"{c.id}-{r}"
             by_region[r].append(Creative(
                 id=rid,
                 region=r,
-                headline=loc["headline"][:40],
-                primary_text=loc["primary_text"][:120],
+                headline=c.headline,
+                primary_text=c.primary_text,
                 image_url=c.image_url,
                 scores=c.scores.copy()
             ))

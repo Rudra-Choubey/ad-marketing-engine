@@ -44,7 +44,11 @@ export default function MarketingAutomationApp() {
       const response = await fetch("http://127.0.0.1:8000/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          program_name: formData.product,
+          target_audience: formData.people,
+          localize: formData.localize,
+        }),
       })
 
       console.log("📥 Got response:", response.status)
@@ -102,7 +106,7 @@ export default function MarketingAutomationApp() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
-      {/* Background blur blobs */}
+      {/* Background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-20 w-72 h-72 bg-gradient-to-r from-purple-200/30 to-pink-200/30 rounded-full blur-3xl animate-float"></div>
         <div
@@ -232,12 +236,35 @@ export default function MarketingAutomationApp() {
 
                 {/* Error / Result */}
                 {error && <p className="text-red-500 text-sm">{error}</p>}
+
                 {creative && (
                   <div className="p-6 bg-gray-50 rounded-xl border border-gray-200">
-                    <h3 className="text-xl font-semibold mb-2">Generated Creatives</h3>
-                    <pre className="whitespace-pre-wrap text-gray-800 text-sm">
-                      {JSON.stringify(creative, null, 2)}
-                    </pre>
+                    <h3 className="text-xl font-semibold mb-4">Generated Creatives</h3>
+                    <p className="mb-2 text-gray-700">{creative.creative_brief}</p>
+                    <p className="mb-6 text-gray-500 text-sm">
+                      Performance Score: {creative.performance_score}
+                    </p>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {creative.creatives?.map((c: any) => (
+                        <Card key={c.id} className="overflow-hidden shadow-md">
+                          <CardContent className="p-4">
+                            <h4 className="font-bold text-lg">{c.headline}</h4>
+                            <p className="text-gray-700">{c.primary_text}</p>
+                            {c.image_url && (
+                              <img
+                                src={c.image_url}
+                                alt={c.headline}
+                                className="rounded-lg mt-3 w-full h-48 object-cover"
+                              />
+                            )}
+                            <p className="text-sm text-gray-500 mt-2">
+                              Brand Score: {c.scores.brand}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

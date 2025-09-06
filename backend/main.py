@@ -14,7 +14,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 # --------- Schemas ---------
 class Brand(BaseModel):
     name: str
@@ -57,13 +56,20 @@ def _dump(x: Any) -> Any:
     return x
 
 def generate_creatives(brand: Dict, brief: Dict, n=3):
+    # simple stub; swap with your AI-backed generator if needed
     creatives = []
+    placeholders = [
+        "https://picsum.photos/seed/1/600/400",
+        "https://picsum.photos/seed/2/600/400",
+        "https://picsum.photos/seed/3/600/400",
+    ]
     for i in range(n):
         c = Creative(
             id=f"creative_{i+1}",
-            headline=f"{brief['product']} is amazing!",
-            primary_text=f"Try {brief['product']} for {brief['audience']}!",
-            image_url="https://via.placeholder.com/150"
+            headline=f"{brief['product']} — made for {brief['audience']}",
+            primary_text=f"Try {brief['product']} for {brief['audience']}! {', '.join(brief.get('value_props', [])[:2])}",
+            image_url=placeholders[i % len(placeholders)],
+            scores={"brand": round(0.6 + 0.4 * random.random(), 2)},
         )
         creatives.append(c)
     DB["creatives"] = creatives
@@ -72,6 +78,7 @@ def generate_creatives(brand: Dict, brief: Dict, n=3):
 def localize_creatives(creatives, brief):
     localized = {}
     for region in brief.get("regions", ["IN"]):
+        # shallow copy is fine for this stub
         localized[region] = [c for c in creatives]
     return localized
 
@@ -99,44 +106,54 @@ def set_brief(br: Brief):
 
 @app.post("/generate")
 def generate_endpoint(data: dict = Body(...)):
-    product = data.get("product")
-    audience = data.get("people")  # map "people" -> audience
+    """
+    Accepts EITHER:
+      { product, people, price, place, promotion, localize }
+    OR:
+      { program_name, target_audience, localize }
+    """
+    # Compat: accept both payload shapes
+    product = data.get("product") or data.get("program_name")
+    audience = data.get("people") or data.get("target_audience")
     localize_flag = data.get("localize", False)
 
     if not product or not audience:
-        raise HTTPException(400, "product and people are required")
+        raise HTTPException(400, "Provide either (product & people) or (program_name & target_audience).")
 
-    # Fake brand & brief if not set
-    if not DB["brand"]:
-        DB["brand"] = {
-            "name": "Hackathon Brand",
-            "palette": ["#123456"],
-            "tone": ["playful"],
-            "banned_phrases": [],
-            "logo_url": ""
-        }
+    # Always (re)build brand & brief from request to keep things simple
+    DB["brand"] = {
+        "name": "Hackathon Brand",
+        "palette": ["#123456"],
+        "tone": ["playful"],
+        "banned_phrases": [],
+        "logo_url": ""
+    }
 
-    if not DB["brief"]:
-        DB["brief"] = {
-            "product": product,
-            "audience": audience,
-            "value_props": [
-                f"Premium pricing: {data.get('price', 'N/A')}",
-                f"Available at: {data.get('place', 'N/A')}",
-                f"Promotion style: {data.get('promotion', 'N/A')}"
-            ],
-            "cta": "Buy now",
-            "channels": ["Instagram"],
-            "regions": ["IN", "US"] if localize_flag else ["IN"]
-        }
+    DB["brief"] = {
+        "product": product,
+        "audience": audience,
+        "value_props": [
+            f"Premium pricing: {data.get('price', 'N/A')}",
+            f"Available at: {data.get('place', 'N/A')}",
+            f"Promotion: {data.get('promotion', 'N/A')}"
+        ],
+        "cta": "Buy now",
+        "channels": ["Instagram"],
+        "regions": ["IN", "US"] if localize_flag else ["IN"]
+    }
 
     items = generate_creatives(DB["brand"], DB["brief"], n=3)
 
+    # Return FULL creatives for the UI (with image_url) + keep legacy fields for safety
     return {
+        "creatives": [_dump(c) for c in items],
+        "creative_brief": f"{product} for {audience} — localized={localize_flag}",
+        "performance_score": round(50 + 50 * random.random(), 2),
+        # legacy keys (optional; remove later)
         "ad_copy_1": items[0].primary_text if items else "N/A",
         "ad_copy_2": items[1].primary_text if len(items) > 1 else "N/A",
-        "creative_brief": f"{product} for {audience} — localized={localize_flag}",
-        "performance_score": round(50 + 50 * random.random(), 2)
+        "image_1": items[0].image_url if items else "",
+        "image_2": items[1].image_url if len(items) > 1 else "",
     }
 
 @app.post("/localize")
