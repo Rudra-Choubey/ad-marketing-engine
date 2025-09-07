@@ -10,12 +10,16 @@ load_dotenv()
 from .api.routes import router
 
 app = FastAPI(title="Ad Marketing Engine")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"]
+    allow_origins=[
+        "https://ad-marketing-engine-6g3s.vercel.app"
+    ],  # or ["*"] during dev
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
 
 # serve generated images (if you enable image gen later)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
