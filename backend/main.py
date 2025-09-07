@@ -3,10 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import os
-from .api.routes import router
 
-# load env (OPENAI_API_KEY, etc.)
+# Load env BEFORE importing routes so code that reads env at import-time sees it
 load_dotenv()
+
+from .api.routes import router
 
 app = FastAPI(title="Ad Marketing Engine")
 

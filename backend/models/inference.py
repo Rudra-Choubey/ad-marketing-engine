@@ -1,13 +1,12 @@
 # backend/models/inference.py
 import os, json, time, random, pathlib
 from typing import List, Dict
-from diffusers import StableDiffusionPipeline
-import torch
 
 from dotenv import load_dotenv
 load_dotenv()
 
-USE_HF = os.getenv("USE_HF", "1") not in ["0", "false", "False", "no", "No"]
+AI_PROVIDER = os.getenv("AI_PROVIDER", "hf").lower()  # "hf" or "gemini"
+USE_HF = AI_PROVIDER == "hf"
 
 HF_TEXT_MODEL = os.getenv("HF_TEXT_MODEL", "google/flan-t5-small")
 HF_EN_HI_MODEL = os.getenv("HF_EN_HI_MODEL", "Helsinki-NLP/opus-mt-en-hi")
@@ -60,8 +59,12 @@ def generate_copy_gpt(brand: Dict, brief: Dict, n: int = 4) -> List[Dict]:
     HF replacement for previous GPT function.
     Returns a list of {headline, primary_text, tags}.
     """
+    if AI_PROVIDER == "gemini":
+        # Delegate to Gemini provider
+        from .gemini import generate_copy as _g_copy
+        return _g_copy(brand, brief, n=n)
     if not USE_HF:
-        raise RuntimeError("HF disabled")
+        raise RuntimeError("HF disabled (set AI_PROVIDER=hf or AI_PROVIDER=gemini)")
 
     tone = ", ".join(brand.get("tone", []))
     palette = ", ".join(brand.get("palette", []))
@@ -122,6 +125,9 @@ def transcreate_copy_gpt(brand: Dict, brief: Dict, copy: Dict, region: str) -> D
     For demo: IN↔US both English, but we show currency/idiom tweak.
     If you want Hindi, we translate EN->HI with MarianMT.
     """
+    if AI_PROVIDER == "gemini":
+        from .gemini import transcreate_copy as _g_trans
+        return _g_trans(brand, brief, copy, region)
     tone = ", ".join(brand.get("tone", []))
     headline = copy["headline"]
     body = copy["primary_text"]
@@ -150,15 +156,28 @@ _pipe = None
 def _lazy_sd():
     global _pipe
     if _pipe is None:
+        # Lazy import heavy deps so Gemini-only setups can run without them
+        try:
+            from diffusers import StableDiffusionPipeline
+            import torch
+        except Exception as e:
+            raise RuntimeError("Stable Diffusion dependencies not installed") from e
         model_id = "runwayml/stable-diffusion-v1-5"
         _pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
         _pipe = _pipe.to("cuda" if torch.cuda.is_available() else "cpu")
     return _pipe
 
-def generate_image_gpt(brand: Dict, brief: Dict, copy: Dict) -> str:
+def generate_image_gpt(brand: Dict, brief: Dict, copy: Dict, prompt_info: Dict | None = None) -> str:
+    if AI_PROVIDER == "gemini":
+        from .gemini import generate_image as _g_img
+        return _g_img(brand, brief, copy, prompt_info=prompt_info)
+    # HF/local fallback (Stable Diffusion)
     pipe = _lazy_sd()
-    prompt = f"""
-Ad image for {brief['product']} targeting {brief['audience']}.
+    if prompt_info and isinstance(prompt_info, dict):
+        prompt = prompt_info.get("prompt") or ""
+    else:
+        prompt = f"""
+Ad image for {brief['product']} targeting {brief.get('audience','')}.
 Style: {", ".join(brand.get('tone', []))}, modern, minimal.
 Include slogan: {copy['headline']}
 Brand colors: {", ".join(brand.get('palette', []))}

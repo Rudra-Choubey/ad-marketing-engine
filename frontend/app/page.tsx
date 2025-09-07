@@ -1,5 +1,7 @@
 "use client"
+"use client"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -17,6 +19,7 @@ interface MarketingData {
 }
 
 export default function MarketingAutomationApp() {
+  const router = useRouter()
   const [formData, setFormData] = useState<MarketingData>({
     product: "",
     price: "",
@@ -30,10 +33,12 @@ export default function MarketingAutomationApp() {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = () => {
-    console.log("Form Data:", formData)
-    // You can access formData here and process it as needed
-    // Add your own logic to fetch/process the data
+  const handleSubmit = async () => {
+    // Persist inputs and navigate immediately; output page will show loading and fetch
+    localStorage.setItem("fiveps", JSON.stringify(formData))
+    localStorage.removeItem("image_urls")
+    localStorage.setItem("pending_generate", "1")
+    router.push("/output_page")
   }
 
   const marketingPs = [
