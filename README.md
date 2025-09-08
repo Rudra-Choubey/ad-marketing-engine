@@ -1,4 +1,14 @@
 Backend AI providers: Hugging Face (default) or Gemini
+How to Run
+
+Go to the backend directory
+- `pip install -r requirements.txt`
+- `uvicorn backend.main:app --reload --port 8000`
+
+
+Go in the frontend directory
+- `npm install`
+- `npm run dev`
 
 Quick switch via environment:
 - `AI_PROVIDER=hf` (default) uses HF text (flan-t5) + local Stable Diffusion image.
